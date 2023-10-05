@@ -2,6 +2,7 @@
 #if ENABLE_INPUT_SYSTEM && STARTER_ASSETS_PACKAGES_CHECKED
 using UnityEngine.InputSystem;
 #endif
+
 namespace StarterAssets
 {
 	[RequireComponent(typeof(CharacterController))]
@@ -63,16 +64,7 @@ namespace StarterAssets
 		private float _jumpTimeoutDelta;
 		private float _fallTimeoutDelta;
 
-		private GameManager gm;
-
-		private float timeFall;
-		private float footstepSpeed;
-		private float footstepTimer;
-
-		private bool startedFalling;
-
-
-
+	
 #if ENABLE_INPUT_SYSTEM && STARTER_ASSETS_PACKAGES_CHECKED
 		private PlayerInput _playerInput;
 #endif
@@ -107,7 +99,6 @@ namespace StarterAssets
 		{
 			_controller = GetComponent<CharacterController>();
 			_input = GetComponent<StarterAssetsInputs>();
-			gm = GameObject.Find("GameManager").GetComponent<GameManager>();
 #if ENABLE_INPUT_SYSTEM && STARTER_ASSETS_PACKAGES_CHECKED
 			_playerInput = GetComponent<PlayerInput>();
 #else
@@ -117,10 +108,6 @@ namespace StarterAssets
 			// reset our timeouts on start
 			_jumpTimeoutDelta = JumpTimeout;
 			_fallTimeoutDelta = FallTimeout;
-
-			timeFall = 0f;
-			footstepTimer = 0.0f;
-			footstepSpeed = 0.3f;
 		}
 
 		private void Update()
@@ -166,32 +153,14 @@ namespace StarterAssets
 
 		private void Move()
 		{
-			PlayerFootsteps footsteps = gameObject.GetComponent<PlayerFootsteps>();
-			PostWwiseEvent wwiseEvent = gameObject.GetComponent<PostWwiseEvent>();
-
 			// set target speed based on move speed, sprint speed and if sprint is pressed
-			//float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
-			float targetSpeed;
-            if (_input.sprint)
-            {
-				targetSpeed = SprintSpeed;
-				footstepSpeed = 0.2f;
-			}
-            else
-            {
-				targetSpeed = MoveSpeed;
-				footstepSpeed = 0.3f;
-			}
+			float targetSpeed = _input.sprint ? SprintSpeed : MoveSpeed;
 
 			// a simplistic acceleration and deceleration designed to be easy to remove, replace, or iterate upon
 
 			// note: Vector2's == operator uses approximation so is not floating point error prone, and is cheaper than magnitude
 			// if there is no input, set the target speed to 0
-			if (_input.move == Vector2.zero) 
-			{
-				targetSpeed = 0.0f;
-			}
-			
+			if (_input.move == Vector2.zero) targetSpeed = 0.0f;
 
 			// a reference to the players current horizontal velocity
 			float currentHorizontalSpeed = new Vector3(_controller.velocity.x, 0.0f, _controller.velocity.z).magnitude;
@@ -223,53 +192,16 @@ namespace StarterAssets
 			{
 				// move
 				inputDirection = transform.right * _input.move.x + transform.forward * _input.move.y;
-
-				if (footstepTimer > footstepSpeed)
-				{
-					footsteps.SelectAndPlayFootstep();
-					footstepTimer = 0.0f;
-				}
-
-				footstepTimer += Time.deltaTime;
-
 			}
 
-			if (this.transform.position.y > -2.0f)
-            {
-				timeFall = 0f;
-				_controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
-			} else
-            {
-				_controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
-				wwiseEvent.PlayResetSound();
-				timeFall += Time.deltaTime;
-				if(timeFall > 1.3f)
-                {
-					PlayerDeath();
-					timeFall = 0f;
-				}
-			}
 			// move the player
-		}
-
-		private void PlayerDeath()
-        {
-            Debug.Log("Player has died!");
-			// teleport player to start of area
-			_controller.enabled = false;
-			_controller.transform.position = new Vector3(0f, 1f, -1f);
-			_controller.enabled = true;
-			// increment Deaths
-			gm.LivesRemaining -= 1;
+			_controller.Move(inputDirection.normalized * (_speed * Time.deltaTime) + new Vector3(0.0f, _verticalVelocity, 0.0f) * Time.deltaTime);
 		}
 
 		private void JumpAndGravity()
 		{
-			PostWwiseEvent wwiseEvent = gameObject.GetComponent<PostWwiseEvent>();
-
 			if (Grounded)
 			{
-				wwiseEvent.UnMuteStepSound();
 				// reset the fall timeout timer
 				_fallTimeoutDelta = FallTimeout;
 
@@ -284,28 +216,16 @@ namespace StarterAssets
 				{
 					// the square root of H * -2 * G = how much velocity needed to reach desired height
 					_verticalVelocity = Mathf.Sqrt(JumpHeight * -2f * Gravity);
-
-					wwiseEvent.PlayJumpSound();			
 				}
-				
 
 				// jump timeout
 				if (_jumpTimeoutDelta >= 0.0f)
 				{
 					_jumpTimeoutDelta -= Time.deltaTime;
 				}
-
-				//if we are grounded after falling or jumping then falling, play landing sound
-				if (startedFalling == true)
-				{
-					wwiseEvent.PlayLandingSound();
-
-					startedFalling = false;
-				}
 			}
 			else
 			{
-				wwiseEvent.MuteStepSound();
 				// reset the jump timeout timer
 				_jumpTimeoutDelta = JumpTimeout;
 
@@ -317,11 +237,6 @@ namespace StarterAssets
 
 				// if we are not grounded, do not jump
 				_input.jump = false;
-
-				//indicates that we have either fallen or jumped
-				startedFalling = true;
-
-				//set a boolean (maybe called, falling) to true, 
 			}
 
 			// apply gravity over time if under terminal (multiply by delta time twice to linearly speed up over time)
